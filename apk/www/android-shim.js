@@ -24,11 +24,16 @@
     try {
       if (!area) return;
       var root = document.documentElement;
-      function px(value) { var n = Number(value); return (n > 0 ? Math.round(n) : 0) + 'px'; }
-      root.style.setProperty('--lulu-safe-top', px(area.top));
-      root.style.setProperty('--lulu-safe-bottom', px(area.bottom));
-      root.style.setProperty('--lulu-safe-left', px(area.left));
-      root.style.setProperty('--lulu-safe-right', px(area.right));
+      function px(value, max) {
+        var n = Number(value);
+        if (!(n > 0)) n = 0;
+        if (max && n > max) n = max; // 保险：绝不把页面整体往下顶
+        return Math.round(n) + 'px';
+      }
+      root.style.setProperty('--lulu-safe-top', px(area.top, 48));
+      root.style.setProperty('--lulu-safe-bottom', px(area.bottom, 24));
+      root.style.setProperty('--lulu-safe-left', px(area.left, 24));
+      root.style.setProperty('--lulu-safe-right', px(area.right, 24));
     } catch (e) {}
   }
   window.__LULU_APPLY_SAFE_AREA__ = applySafeArea;

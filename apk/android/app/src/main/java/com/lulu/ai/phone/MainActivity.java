@@ -76,22 +76,25 @@ public class MainActivity extends BridgeActivity {
     }
 
     /**
-     * 安全区上报：把挖孔/状态栏高度告诉网页，CSS 里的 --lulu-safe-* 会用它做避让，
-     * 背景与整页画面仍然铺到屏幕最顶端。
+     * 安全区上报：只上报「挖孔」高度，并且换算成 CSS px（物理px / density），
+     * 这样刘海片区的画面被正常占用，只有摄像头那一小块会被避让。
      */
     private void refreshSafeArea() {
         View decor = getWindow().getDecorView();
         WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(decor);
         if (insets == null) return;
         Insets cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout());
-        Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-        pushSafeArea(Math.max(cutout.top, bars.top));
+        pushSafeArea(cutout.top);
     }
 
     private void pushSafeArea(int topPx) {
         WebView view = webView();
         if (view == null) return;
-        String script = "window.__LULU_SAFE_AREA__={top:" + Math.max(0, topPx)
+        float density = getResources().getDisplayMetrics().density;
+        if (density <= 0f) density = 1f;
+        // WebView 里的 CSS px == dp，所以要把物理像素除以 density
+        int cssTop = Math.round(Math.max(0, topPx) / density);
+        String script = "window.__LULU_SAFE_AREA__={top:" + cssTop
                 + ",bottom:0,left:0,right:0};"
                 + "if(window.__LULU_APPLY_SAFE_AREA__){window.__LULU_APPLY_SAFE_AREA__(window.__LULU_SAFE_AREA__);}";
         view.evaluateJavascript(script, null);
@@ -110,9 +113,7 @@ public class MainActivity extends BridgeActivity {
             if (v.getPaddingBottom() != bottom) {
                 v.setPadding(v.getPaddingLeft(), v.getPaddingTop(), v.getPaddingRight(), bottom);
             }
-            Insets cutout = windowInsets.getInsets(WindowInsetsCompat.Type.displayCutout());
-            Insets bars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
-            pushSafeArea(Math.max(cutout.top, bars.top));
+            pushSafeArea(windowInsets.getInsets(WindowInsetsCompat.Type.displayCutout()).top);
             return windowInsets;
         });
         view.requestApplyInsets();
