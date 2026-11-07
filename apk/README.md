@@ -45,3 +45,5 @@ cd android && ./gradlew assembleDebug
 - 本工程只带 `@capacitor/preferences` + `@capacitor/local-notifications` 两个官方插件；`capacitor.config.json` 里的 `SplashScreen` / `Keyboard` / `StatusBar` / `SystemBars` 配置项因为没有装对应插件会被忽略（沉浸式改由 `MainActivity` 原生实现）。
 - `www/` 是构建产物（已改：去掉邀请码/账密门禁、加 SillyTavern 角色卡/世界书/正则导入），源码不在此仓库。
 - 通知是「本地通知」（`schedule` 到点弹出），不是 FCM 远程推送；App 被系统冻结时，长时间后台的定时提醒可能延后。
+
+<!-- rebuild trigger 2026-11-07T14:50:39.9850974+08:00 -->
