@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Lunara AI</string>
+    <string name="title_activity_main">Lunara AI</string>
+    <string name="package_name">com.lulu.ai.phone</string>
+    <string name="custom_url_scheme">com.lulu.ai.phone</string>
+</resources>

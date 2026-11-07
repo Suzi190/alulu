@@ -1,0 +1,20 @@
+{
+  "name": "lunara-ai-phone",
+  "version": "1.325.0",
+  "private": true,
+  "description": "Lunara AI Phone - Capacitor Android build",
+  "scripts": {
+    "postinstall": "echo ready",
+    "sync": "cap sync android",
+    "open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/local-notifications": "^6.1.0",
+    "@capacitor/preferences": "^6.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0"
+  }
+}

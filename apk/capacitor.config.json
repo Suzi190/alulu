@@ -1,0 +1,31 @@
+{
+  "appId": "com.lulu.ai.phone",
+  "appName": "Lunara AI",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": false,
+    "webContentsDebuggingEnabled": false
+  },
+  "server": {
+    "androidScheme": "https",
+    "hostname": "localhost",
+    "cleartext": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "launchShowDuration": 500,
+      "backgroundColor": "#F7F4EFFF",
+      "showSpinner": false
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_lulu",
+      "iconColor": "#9B86B3"
+    },
+    "Keyboard": {
+      "resize": "native",
+      "resizeOnFullScreen": false
+    }
+  }
+}
