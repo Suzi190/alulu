@@ -29,14 +29,18 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install npm deps
         run: npm install --no-audit --no-fund
 
       - name: Capacitor sync
         run: npx cap sync android
+
+      - name: Point Gradle at the preinstalled Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls "$ANDROID_HOME/platforms" || true
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
       - name: Build debug APK
         run: |
