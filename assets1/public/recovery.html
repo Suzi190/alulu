@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <title>LULU 本机恢复检查</title>
+  <style>
+    :root{color-scheme:light;--bg:#fff8fb;--ink:#3f3038;--muted:#806b76;--line:#ead9e1;--accent:#b74678;--soft:#fff;--warn:#fff4df;--ok:#edf9f1}
+    *{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#fff8fb,#f9eef4);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif;line-height:1.55}
+    main{width:min(720px,100%);margin:0 auto;padding:24px 16px calc(36px + env(safe-area-inset-bottom))}
+    h1{font-size:24px;line-height:1.2;margin:4px 0 8px}h2{font-size:17px;margin:24px 0 10px}.sub{color:var(--muted);font-size:13px}
+    .notice,.panel{background:rgba(255,255,255,.86);border:1px solid var(--line);border-radius:16px;padding:15px;margin-top:14px;box-shadow:0 5px 18px rgba(120,60,90,.06)}
+    .notice{background:var(--warn);border-color:#efd49c;font-size:13px}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.row>*{min-width:0}
+    button{border:0;border-radius:12px;padding:11px 14px;font:inherit;font-weight:650;cursor:pointer;background:#f2e8ee;color:var(--ink)}button.primary{background:var(--accent);color:#fff}button:disabled{opacity:.5;cursor:default}
+    input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--ink);font:inherit}label{display:block;font-size:13px;color:var(--muted);margin:10px 0 5px}
+    .candidate{padding:13px 0;border-bottom:1px solid var(--line)}.candidate:last-child{border-bottom:0}.candidate strong{display:block;font-size:14px}.meta{font-size:12px;color:var(--muted);margin-top:3px}.tag{display:inline-block;padding:2px 7px;border-radius:99px;background:#f4e8ee;color:#87526a;font-size:11px;margin-left:5px}
+    .empty{color:var(--muted);font-size:13px;padding:8px 0}.status{font-size:13px;margin-top:10px}.ok{color:#2d7b4b}.err{color:#a63e4e}.small{font-size:12px;color:var(--muted)}
+    code{font-family:ui-monospace,SFMono-Regular,monospace;font-size:11px;word-break:break-all}.foot{margin-top:24px;text-align:center;color:var(--muted);font-size:11px}
+  </style>
+</head>
+<body>
+<main>
+  <h1>LULU 本机恢复检查</h1>
+  <div class="sub">只读扫描当前 Safari / PWA 存储容器中的副本</div>
+  <div class="notice">此页面不会解锁保险箱、应用云端快照、覆盖数据或清理存储。请先不要返回 LULU 保存或同步。</div>
+  <div class="panel">
+    <div class="row"><button class="primary" id="scan">重新扫描</button><button id="copy">复制检查报告</button><button id="export" disabled>导出救援包</button></div>
+    <div id="status" class="status">准备扫描…</div>
+  </div>
+  <h2>可恢复副本</h2>
+  <div class="panel" id="candidates"><div class="empty">正在读取本机存储…</div></div>
+  <h2>云端只读比较</h2>
+  <div class="panel">
+    <div class="small">仅在点击后使用当前 PWA 已保存且未过期的登录会话，对云端聊天快照执行一次 GET。不会刷新登录、上传或写回本机。</div>
+    <div class="row" style="margin-top:10px"><button id="cloudCompare">只读比较云端聊天</button></div>
+    <div id="cloudStatus" class="status"></div>
+  </div>
+  <h2>保险箱预览</h2>
+  <div class="panel">
+    <div class="small">只在内存中尝试解密并显示时间与数量，不会把解密内容写回 LULU。</div>
+    <label for="vaultPwd">数据保险箱密码</label><input id="vaultPwd" type="password" autocomplete="off" placeholder="输入后点击预览">
+    <div class="row" style="margin-top:10px"><button id="vaultPreview">只读预览</button></div>
+    <div id="vaultStatus" class="status"></div>
+  </div>
+  <div class="foot">恢复工具 · 云端仅限明确触发的只读 GET · 救援包只下载到当前设备</div>
+</main>
+<script>
+'use strict';
+const PFX='aip-';
+const state={candidates:[],vaultBlob:null,scannedAt:0,db:{},cloud:{status:'未检查'} };
+const SUPABASE_DEFAULT={url:'https://tzslnjoubkjpagpofhji.supabase.co',anonKey:'sb_publishable_HkLea2NZ73NGtUHUYYL_aw_ZQ_YaqGk'};
+const $=id=>document.getElementById(id);
+const parse=(raw)=>{try{return JSON.parse(raw)}catch{return null}};
+const value=(key)=>parse(localStorage.getItem(PFX+key));
+const toTime=(v)=>{if(typeof v==='number'&&v>0)return v;const n=Number(v);if(Number.isFinite(n)&&n>0)return n;const t=Date.parse(String(v||''));return Number.isFinite(t)?t:0};
+function stats(data){
+  const chats=Array.isArray(data?.chats)?data.chats:Array.isArray(data?.chat)?data.chat:Array.isArray(data)?data:[];
+  let messages=0,latest=0,earliest=0;
+  for(const s of chats){for(const m of (s?.messages||[])){messages++;const t=toTime(m.timestamp||m.createdAt||m.updatedAt);if(t){latest=Math.max(latest,t);earliest=earliest?Math.min(earliest,t):t;}}}
+  const chars=Array.isArray(data?.characters)?data.characters:Array.isArray(data?.chars)?data.chars:[];
+  return{sessions:chats.length,messages,characters:chars.length,latest,earliest};
+}
+function fmt(t){return t?new Date(t).toLocaleString('zh-CN',{hour12:false}):'无时间记录'}
+function addCandidate(name,source,data,savedAt=0){if(!data)return;const s=stats(data);state.candidates.push({name,source,data,savedAt:savedAt||data.savedAt||data.exportedAt||data.backedUpAt||0,stats:s});}
+function currentSnapshot(){
+  const get=k=>value(k);return{version:2,profile:get('profile'),characters:get('chars'),masks:get('masks'),worldbook:get('wb'),books:get('books'),life:get('life'),api:get('api'),chats:get('sess'),narrative:get('narrative'),charStatus:get('char-status'),phoneActivity:get('phone-activity')};
+}
+function scanStorage(){
+  state.candidates=[];const legacyVault=value('vblob');state.vaultBlob=legacyVault?.__indexedDomain?null:legacyVault;
+  const current=currentSnapshot();
+  if(current.chats||current.characters||current.life||current.profile)addCandidate('当前本机数据','localStorage',current);
+  for(const [key,label] of [['sync-backup-before-download','下载前本机副本'],['sync-backup-latest','最近同步前副本']]){const d=value(key);if(d)addCandidate(label,'localStorage:'+key,d);}
+  const rawKeys=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(PFX))rawKeys.push(k.slice(PFX.length));}
+  state.db.localStorageKeys=rawKeys;
+  return openDb().then(async db=>{
+    if(!db){state.db.indexedDb='不可用';return;}
+    state.db.indexedDb='lulu-data-v2';
+    const backups=await getAll(db,'backups');state.db.backups=backups.length;
+    backups.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).forEach((row,i)=>addCandidate(`IndexedDB 版本备份 ${i+1}`,'backups',row.data,row.createdAt));
+    const bodies=await getAll(db,'chatBodies'),chatBodies=bodies.filter(row=>row.kind==='chat-session-v2'||Array.isArray(row.messages));state.db.chatBodies=chatBodies.length;
+    chatBodies.forEach((row,i)=>addCandidate(`IndexedDB 聊天正文 ${i+1}`,'chatBodies',{chats:[row.session||{messages:row.messages||[]}]},row.updatedAt));
+    const snapshots=await getAll(db,'chatSnapshots'),chatSnapshots=snapshots.filter(row=>row.kind==='chat-snapshot'&&Array.isArray(row.sessions));state.db.chatSnapshots=chatSnapshots.length;
+    chatSnapshots.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).forEach((row,i)=>addCandidate(`自动聊天快照 ${i+1}`,'chatSnapshots',{chats:row.sessions},row.createdAt));
+    const jobs=await getAll(db,'importJobs');state.db.importJobs=jobs.length;
+    const domains=await getAll(db,'domains'),domainMap=Object.fromEntries(domains.map(row=>[row.key,row.value]));state.db.domains=domains.length;
+    if(domainMap.vblob)state.vaultBlob=domainMap.vblob;
+    const durable={version:19,profile:domainMap.profile,characters:domainMap.chars,masks:domainMap.masks,worldbook:domainMap.wb,books:domainMap.books,life:domainMap.life,chats:value('sess'),narrative:domainMap.narrative,charStatus:domainMap['char-status']};
+    if(durable.chats||durable.characters||durable.life||durable.profile)addCandidate('当前 IndexedDB 数据','domains',durable,Math.max(0,...domains.map(row=>Number(row.updatedAt)||0)));
+    return;
+  }).catch(e=>{state.db.indexedDb='读取失败';state.db.error=String(e.message||e)});
+}
+function openDb(timeoutMs=2500){return new Promise(resolve=>{if(!indexedDB)return resolve(null);let settled=false;const r=indexedDB.open('lulu-data-v2'),finish=value=>{if(settled)return;settled=true;clearTimeout(timer);resolve(value);},timer=setTimeout(()=>finish(null),timeoutMs);r.onsuccess=()=>{if(settled){r.result.close();return;}finish(r.result);};r.onerror=()=>finish(null);r.onblocked=()=>finish(null);r.onupgradeneeded=()=>{try{r.transaction.abort()}catch{}};});}
+function getAll(db,store,timeoutMs=2500){return new Promise((resolve,reject)=>{if(!db.objectStoreNames.contains(store))return resolve([]);let settled=false,tx,r;const finish=(fn,value)=>{if(settled)return;settled=true;clearTimeout(timer);fn(value);},timer=setTimeout(()=>{try{tx?.abort()}catch{}finish(reject,new Error(`读取 ${store} 超时`));},timeoutMs);try{tx=db.transaction(store,'readonly');r=tx.objectStore(store).getAll();r.onsuccess=()=>finish(resolve,r.result||[]);r.onerror=()=>finish(reject,r.error||new Error('读取失败'));tx.onabort=()=>finish(reject,tx.error||new Error('读取已中止'));}catch(error){finish(reject,error);}});}
+function render(){
+  const box=$('candidates');if(!state.candidates.length){box.innerHTML='<div class="empty">没有找到可读的本机副本。保险箱仍可能存在，请使用下方只读预览。</div>';}
+  else{box.innerHTML=state.candidates.map((c,i)=>`<div class="candidate"><strong>${escapeHtml(c.name)} <span class="tag">${escapeHtml(c.source)}</span></strong><div class="meta">${c.stats.messages} 条消息 · ${c.stats.characters} 个角色 · 最晚 ${escapeHtml(fmt(c.stats.latest))}${c.savedAt?` · 副本时间 ${escapeHtml(fmt(toTime(c.savedAt)))}`:''}</div></div>`).join('');}
+  $('status').textContent=`扫描完成：${state.candidates.length} 个候选副本 · ${state.db.backups||0} 个版本备份 · ${state.db.chatBodies||0} 个聊天正文 · ${state.db.chatSnapshots||0} 个自动快照 · ${fmt(state.scannedAt)}`;
+  $('status').className='status '+(state.candidates.length?'ok':'');$('export').disabled=!state.candidates.length&&!state.vaultBlob;
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function report(){return['LULU 本机恢复检查',`扫描时间：${fmt(state.scannedAt)}`,`候选副本：${state.candidates.length}`,...state.candidates.map(c=>`${c.name} | ${c.stats.messages} 条消息 | 最晚 ${fmt(c.stats.latest)} | ${c.source}`),`保险箱：${state.vaultBlob?'存在（已加密）':'未找到'}`,`IndexedDB：${state.db.indexedDb||'未扫描'}`,`云端检查：${state.cloud.status}${state.cloud.updatedAt?` | 云端更新时间 ${fmt(toTime(state.cloud.updatedAt))}`:''}`].join('\n');}
+function sanitize(value){
+  if(Array.isArray(value))return value.map(sanitize);
+  if(!value||typeof value!=='object')return value;
+  const out={};for(const [k,v] of Object.entries(value)){if(/^(apiKey|api_key|accessToken|refreshToken|token|secret|password)$/i.test(k))continue;out[k]=sanitize(v);}return out;
+}
+function download(name,data){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);}
+function exportRescue(){
+  const payload={version:1,kind:'lulu-readonly-rescue',createdAt:new Date().toISOString(),report:report(),vaultBlob:state.vaultBlob||null,candidates:state.candidates.map(c=>({name:c.name,source:c.source,savedAt:c.savedAt,stats:c.stats,data:sanitize(c.data)}))};
+  download(`lulu-rescue-${Date.now()}.json`,payload);$('status').textContent='救援包已生成，请在“文件”中确认下载完成。';
+}
+function decodeJwtPayload(token){
+  try{const part=String(token||'').split('.')[1];if(!part)return null;const normalized=part.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(part.length/4)*4,'=');return JSON.parse(decodeURIComponent(Array.from(atob(normalized),c=>'%'+c.charCodeAt(0).toString(16).padStart(2,'0')).join('')));}catch{return null;}
+}
+function storedCloudSession(){
+  for(let i=0;i<localStorage.length;i++){
+    const key=localStorage.key(i);if(!key||!/^sb-[a-z0-9]+-auth-token$/i.test(key))continue;
+    const root=parse(localStorage.getItem(key)),session=root?.currentSession||root?.session||root;
+    const accessToken=session?.access_token;if(!accessToken)continue;
+    const claims=decodeJwtPayload(accessToken),userId=session?.user?.id||claims?.sub||'';
+    if(userId)return{accessToken,userId,expiresAt:Number(session?.expires_at||claims?.exp||0)*1000};
+  }
+  return null;
+}
+async function compareCloud(){
+  const out=$('cloudStatus'),button=$('cloudCompare');out.textContent='正在只读查询云端…';out.className='status';button.disabled=true;
+  try{
+    const session=storedCloudSession();if(!session)throw new Error('桌面 PWA 中没有可用的云端登录会话');
+    if(session.expiresAt&&session.expiresAt<=Date.now())throw new Error('云端登录会话已过期；为避免触发登录和同步，恢复模式不会自动刷新');
+    const saved=value('supabase')||{},base=String(value('supa-url')||saved.url||SUPABASE_DEFAULT.url).replace(/\/$/,''),anonKey=String(value('supa-key')||saved.anonKey||SUPABASE_DEFAULT.anonKey);
+    const query=new URLSearchParams({select:'data_key,data_value,updated_at',user_id:`eq.${session.userId}`,data_key:'eq.chat',limit:'1'});
+    const response=await fetch(`${base}/rest/v1/user_data?${query}`,{method:'GET',headers:{apikey:anonKey,Authorization:`Bearer ${session.accessToken}`,Accept:'application/json'},cache:'no-store',credentials:'omit',redirect:'error'});
+    if(!response.ok)throw new Error(response.status===401?'云端登录会话已失效':`云端只读请求失败（HTTP ${response.status}）`);
+    const rows=await response.json(),row=Array.isArray(rows)?rows[0]:null;if(!row?.data_value)throw new Error('当前账号没有云端聊天快照');
+    state.candidates=state.candidates.filter(c=>c.source!=='supabase-readonly');addCandidate('云端聊天快照（只读）','supabase-readonly',{chats:row.data_value},row.updated_at);
+    const cloud=state.candidates.find(c=>c.source==='supabase-readonly');state.cloud={status:`已读取 ${cloud?.stats.messages||0} 条消息，最晚 ${fmt(cloud?.stats.latest)}`,updatedAt:row.updated_at,checkedAt:Date.now()};render();
+    out.textContent=`云端只读比较完成：${cloud.stats.messages} 条消息，最晚 ${fmt(cloud.stats.latest)}。未写回本机。`;out.className='status ok';
+  }catch(e){state.cloud={status:e.message||String(e),checkedAt:Date.now()};out.textContent=state.cloud.status;out.className='status err';}
+  finally{button.disabled=false;}
+}
+const ENC=new TextEncoder(),DEC=new TextDecoder();
+function b64(s){return Uint8Array.from(atob(s),c=>c.charCodeAt(0))}
+async function decryptVault(blob,pwd){
+  const material=await crypto.subtle.importKey('raw',ENC.encode(pwd),'PBKDF2',false,['deriveKey']);
+  const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:b64(blob.salt),iterations:200000,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['decrypt']);
+  const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64(blob.iv)},key,b64(blob.ct));return JSON.parse(DEC.decode(plain));
+}
+async function previewVault(){
+  const out=$('vaultStatus');if(!state.vaultBlob){out.textContent='没有找到保险箱快照';out.className='status err';return;}
+  const pwd=$('vaultPwd').value;if(!pwd){out.textContent='请输入保险箱密码';out.className='status err';return;}
+  out.textContent='正在只读解密…';out.className='status';
+  try{const data=await decryptVault(state.vaultBlob,pwd);const c={name:'保险箱快照（只读）',source:'vblob',data,savedAt:data.savedAt||0,stats:stats(data)};state.candidates.push(c);render();out.textContent=`解密成功：${c.stats.messages} 条消息，最晚 ${fmt(c.stats.latest)}。未写回本机。`;out.className='status ok';}
+  catch{out.textContent='密码错误或保险箱数据损坏；没有修改任何数据。';out.className='status err';}
+}
+async function scan(){state.scannedAt=Date.now();state.cloud={status:'未检查'};$('cloudStatus').textContent='';$('status').textContent='正在扫描…';await scanStorage();render();}
+$('scan').addEventListener('click',scan);$('export').addEventListener('click',exportRescue);$('cloudCompare').addEventListener('click',compareCloud);$('vaultPreview').addEventListener('click',previewVault);$('copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(report());$('status').textContent='检查报告已复制';}catch{download(`lulu-recovery-report-${Date.now()}.txt`,report());}});
+scan();
+</script>
+</body>
+</html>

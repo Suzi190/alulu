@@ -1,0 +1,7 @@
+/* V192 Douyin role reaction card and media-backed video layout. */
+#app .main-dy-page .main-dy-role-view{position:absolute;z-index:8;left:14px;right:14px;bottom:76px;max-height:min(46vh,360px);overflow:auto;border:1px solid rgba(255,255,255,.24);border-radius:16px;background:rgba(20,22,28,.92);color:#fff;box-shadow:0 14px 34px rgba(0,0,0,.28);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+#app .main-dy-role-view>header{display:flex;align-items:center;justify-content:space-between;min-height:42px;padding:0 12px;border-bottom:1px solid rgba(255,255,255,.12)}
+#app .main-dy-role-view>header>div{display:flex;align-items:center;gap:7px;min-width:0}.main-dy-role-view>header b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.main-dy-role-view>header button{width:30px;height:30px;border:0;background:transparent;color:#fff;display:grid;place-items:center}
+#app .main-dy-role-card-text{margin:0;padding:12px 14px 8px;color:rgba(255,255,255,.7);font-size:11px;line-height:1.55;overflow-wrap:anywhere}.main-dy-role-card-reply{margin:0 12px 13px;padding:11px 12px;border-radius:11px;background:rgba(255,255,255,.1);color:#fff;font-size:13px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+#app .main-dy-page main>aside{z-index:4}.main-dy-page main>aside button:last-child{font-size:9px}.main-dy-page main>aside button:last-child .l-icon{width:27px;height:27px}
+@media(min-width:700px){#app .main-dy-page .main-dy-role-view{left:50%;right:auto;width:min(420px,calc(100% - 28px));transform:translateX(-50%);bottom:88px}}
