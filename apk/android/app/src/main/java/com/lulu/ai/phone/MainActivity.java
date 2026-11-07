@@ -15,6 +15,8 @@ import android.os.Environment;
 import androidx.activity.OnBackPressedCallback;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -45,14 +47,77 @@ public class MainActivity extends BridgeActivity {
                     new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_POST_NOTIFICATIONS);
         }
 
-        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        // ---------- Edge-to-Edge 全屏：内容铺满整屏，一直铺到刘海/挖孔区域 ----------
+        android.view.Window appWindow = getWindow();
+        WindowCompat.setDecorFitsSystemWindows(appWindow, false);
+        appWindow.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        appWindow.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
+                | WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
+        appWindow.setStatusBarColor(android.graphics.Color.TRANSPARENT);
+        appWindow.setNavigationBarColor(android.graphics.Color.TRANSPARENT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            WindowManager.LayoutParams attributes = appWindow.getAttributes();
+            attributes.layoutInDisplayCutoutMode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                    ? WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                    : WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            appWindow.setAttributes(attributes);
+        }
+        // 键盘：edge-to-edge 下系统不缩放窗口，但会派发 IME inset，由 setupInsets() 手动让位
+        appWindow.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
                 | WindowManager.LayoutParams.SOFT_INPUT_STATE_UNCHANGED);
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
 
         setupWebView();
+        setupInsets();
         setupBackNavigation();
         applyImmersiveMode();
+
+        final WebView early = webView();
+        if (early != null) early.postDelayed(this::refreshSafeArea, 700);
     }
+
+    /**
+     * 安全区上报：把挖孔/状态栏高度告诉网页，CSS 里的 --lulu-safe-* 会用它做避让，
+     * 背景与整页画面仍然铺到屏幕最顶端。
+     */
+    private void refreshSafeArea() {
+        View decor = getWindow().getDecorView();
+        WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(decor);
+        if (insets == null) return;
+        Insets cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout());
+        Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+        pushSafeArea(Math.max(cutout.top, bars.top));
+    }
+
+    private void pushSafeArea(int topPx) {
+        WebView view = webView();
+        if (view == null) return;
+        String script = "window.__LULU_SAFE_AREA__={top:" + Math.max(0, topPx)
+                + ",bottom:0,left:0,right:0};"
+                + "if(window.__LULU_APPLY_SAFE_AREA__){window.__LULU_APPLY_SAFE_AREA__(window.__LULU_SAFE_AREA__);}";
+        view.evaluateJavascript(script, null);
+    }
+
+    /**
+     * edge-to-edge 下键盘不会自动顶起页面：监听 IME inset，把 WebView 底部让出键盘高度，
+     * 页面视口真正变矮，输入框就不会被键盘盖住（也不锁输入）。
+     */
+    private void setupInsets() {
+        final WebView view = webView();
+        if (view == null) return;
+        ViewCompat.setOnApplyWindowInsetsListener(view, (v, windowInsets) -> {
+            Insets ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
+            int bottom = Math.max(0, ime.bottom);
+            if (v.getPaddingBottom() != bottom) {
+                v.setPadding(v.getPaddingLeft(), v.getPaddingTop(), v.getPaddingRight(), bottom);
+            }
+            Insets cutout = windowInsets.getInsets(WindowInsetsCompat.Type.displayCutout());
+            Insets bars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
+            pushSafeArea(Math.max(cutout.top, bars.top));
+            return windowInsets;
+        });
+        view.requestApplyInsets();
+    }
+
 
     private void applyImmersiveMode() {
         try {

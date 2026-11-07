@@ -16,6 +16,28 @@
   }
   window.__LULU_ANDROID_SHIM__ = true;
 
+  /* ---------------- 0. 安全区（刘海 / 挖孔）----------------
+   * 原生把挖孔顶部高度塞进 --lulu-safe-*，CSS 里 317 处
+   * env(safe-area-inset-*) 已改成 var(--lulu-safe-*)，所以页面铺满整屏、
+   * 而顶部按钮/文字自动避让摄像头。 */
+  function applySafeArea(area) {
+    try {
+      if (!area) return;
+      var root = document.documentElement;
+      function px(value) { var n = Number(value); return (n > 0 ? Math.round(n) : 0) + 'px'; }
+      root.style.setProperty('--lulu-safe-top', px(area.top));
+      root.style.setProperty('--lulu-safe-bottom', px(area.bottom));
+      root.style.setProperty('--lulu-safe-left', px(area.left));
+      root.style.setProperty('--lulu-safe-right', px(area.right));
+    } catch (e) {}
+  }
+  window.__LULU_APPLY_SAFE_AREA__ = applySafeArea;
+  if (window.__LULU_SAFE_AREA__) applySafeArea(window.__LULU_SAFE_AREA__);
+  window.addEventListener('lulu:safe-area', function (event) { applySafeArea(event && event.detail); });
+  window.addEventListener('orientationchange', function () {
+    if (window.__LULU_SAFE_AREA__) applySafeArea(window.__LULU_SAFE_AREA__);
+  });
+
   /* ---------------- 1. 本地通知 ---------------- */
   var LN = plugin('LocalNotifications');
   function scheduleNow(title, options) {

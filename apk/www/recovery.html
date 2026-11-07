@@ -8,7 +8,7 @@
   <style>
     :root{color-scheme:light;--bg:#fff8fb;--ink:#3f3038;--muted:#806b76;--line:#ead9e1;--accent:#b74678;--soft:#fff;--warn:#fff4df;--ok:#edf9f1}
     *{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#fff8fb,#f9eef4);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif;line-height:1.55}
-    main{width:min(720px,100%);margin:0 auto;padding:24px 16px calc(36px + env(safe-area-inset-bottom))}
+    main{width:min(720px,100%);margin:0 auto;padding:24px 16px calc(36px + var(--lulu-safe-bottom, 0px))}
     h1{font-size:24px;line-height:1.2;margin:4px 0 8px}h2{font-size:17px;margin:24px 0 10px}.sub{color:var(--muted);font-size:13px}
     .notice,.panel{background:rgba(255,255,255,.86);border:1px solid var(--line);border-radius:16px;padding:15px;margin-top:14px;box-shadow:0 5px 18px rgba(120,60,90,.06)}
     .notice{background:var(--warn);border-color:#efd49c;font-size:13px}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.row>*{min-width:0}
